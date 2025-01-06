@@ -124,7 +124,3 @@ python run_collector.py
 ## 使用截图
 
 ![proxy_config](docs/images/use.png)
-
-## 许可证
-
-MIT License 
