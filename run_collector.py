@@ -106,9 +106,9 @@ def main():
     
     # 1. 运行收集器脚本
     print("Running collector...")
-    # collect_command = f"python3 -u {collector_path} -s"
-    # if not run_command(collect_command):
-    #     sys.exit(1)
+    collect_command = f"python3 -u {collector_path} -s"
+    if not run_command(collect_command):
+        sys.exit(1)
     
     # 确认clash.yaml文件已生成
     if not clash_yaml_path.exists():

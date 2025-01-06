@@ -21,35 +21,48 @@
 ## 安装步骤
 
 1. 克隆项目
+
+2. 创建并激活虚拟环境
 ```bash
-git clone <repository_url>
-cd proxyPool
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+source venv/bin/activate
 ```
 
-2. 安装 Python 依赖
+3. 安装 Python 依赖
 ```bash
 pip install -r requirements.txt
 ```
 
-3. 安装 glider
+4. 安装 glider
 ```bash
-# Linux/macOS
+# macOS
+wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_macos_amd64.tar.gz
+tar -zxf glider_0.16.3_darwin_amd64.tar.gz
+mv glider_0.16.3_darwin_amd64 glider
+chmod +x glider/glider
+
+# Linux
 wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_linux_amd64.tar.gz
 tar -zxf glider_0.16.3_linux_amd64.tar.gz
-mv glider glider/
+mv glider_0.16.3_linux_amd64 glider
 chmod +x glider/glider
-```
-
-## 项目结构
 
 ```
-proxyPool/
-├── aggregator/          # 代理收集模块
-├── glider/             # glider配置和可执行文件
-├── scheduler.py        # 主调度器
-├── run_collector.py    # 代理收集执行脚本
-└── parse.py           # 配置解析脚本
+
+5. 安装aggregator
+```bash
+# 先回到项目根目录
+
+git clone https://github.com/wzdnzd/aggregator.git
+
+cd aggregator
+
+pip install -r requirements.txt
 ```
+
 
 ## 配置说明
 
@@ -83,6 +96,11 @@ check=http://www.msftconnecttest.com/connecttest.txt#expect=200
 
 ## 使用方法
 
+0. 手动更新一次代理池，速度较慢
+```bash
+python run_collector.py
+```
+
 1. 启动代理池服务
 ```bash
 python scheduler.py
@@ -103,45 +121,9 @@ python run_collector.py
 - 协议：SOCKS5
 - 连接地址：127.0.0.1:10707
 
-## 工作流程
+## 使用截图
 
-1. `scheduler.py`
-   - 作为主进程启动和管理整个服务
-   - 定期触发代理更新
-   - 管理 glider 进程
-
-2. `run_collector.py`
-   - 调用 aggregator 收集代理
-   - 生成 clash.yaml 配置文件
-   - 调用 parse.py 转换配置格式
-
-3. `parse.py`
-   - 将 clash 格式的配置转换为 glider 可用的格式
-   - 生成 glider.conf 配置文件
-
-## 注意事项
-
-1. 确保 glider 可执行文件位于正确位置
-2. 需要定期清理和更新代理池
-3. 建议配置自动启动脚本
-4. 如遇到问题，检查日志输出
-
-## 常见问题
-
-1. 如果代理无法连接，请检查：
-   - glider 进程是否正常运行
-   - 代理池是否有可用代理
-   - 端口是否被占用
-
-2. 如何修改监听端口？
-   - 修改 glider.conf 中的 listen 配置
-
-3. 如何添加自定义代理源？
-   - 在 aggregator 模块中添加新的代理源
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request 来改进项目。
+![proxy_config](docs/images/use.png)
 
 ## 许可证
 
