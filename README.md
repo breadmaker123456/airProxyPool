@@ -124,3 +124,7 @@ python run_collector.py
 ## 使用截图
 
 ![proxy_config](docs/images/use.png)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=langchou/airProxyPool&type=Date)](https://star-history.com/#langchou/airProxyPool&Date)
