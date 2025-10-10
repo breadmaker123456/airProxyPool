@@ -114,16 +114,6 @@ python scheduler.py
 - 默认监听：127.0.0.1:10707（SOCKS5）
 
 方式二：自定义机场订阅 → SOCKS5（新）
-- 单次转换（推荐快速验证）：
-```bash
-python subscription_fetcher.py --url "<你的订阅链接>" --format auto --install-to-main-config
-```
-  - 说明：
-    - 支持 YAML（Clash 风格 proxies: [...]）或文本（ss://、vmess://）。
-    - 自动解码常见 base64 包裹/VMess base64 JSON。
-    - 默认会将解析出的 forward= 行写入 glider/glider.conf（仅替换 forward= 段，保留其它设置）。
-    - 如需生成独立配置文件而不改动主配置：使用 --output-config glider/glider.subscription.conf（可配合 glider -config 使用）。
-
 - 定时轮询（长期使用）：
   - 在项目根创建 subscriptions.txt，一行一个订阅 URL（可混合 YAML/TXT）。
   - 如需修改监听端口/间隔等，可编辑 subscription_scheduler.py 顶部的变量（LISTEN、INTERVAL_SECONDS 等）。
@@ -131,24 +121,9 @@ python subscription_fetcher.py --url "<你的订阅链接>" --format auto --inst
 ```bash
 python subscription_scheduler.py
 ```
-  - 行为：定时拉取 → 解析为 forward= → 写入 glider/glider.subscription.conf → 启动/重启 glider 使用该配置。
-  - Windows 下需要确保 glider/glider.exe 存在；macOS/Linux 下为 glider/glider，并具备可执行权限。
+  - 行为：定时拉取 → 解析为 forward= → 写入 glider/glider.subscription.conf → 启动/重启 glider 使用该配置
 
-提示：两种方式可以并行存在，但请明确 glider 实际使用的配置文件（glider.conf 或 glider.subscription.conf），避免相互覆盖。
-
-## 子模块（aggregator）说明（重要变更）
-
-- 本仓库已将 aggregator 作为 git submodule 引入，不再单独 git clone。
-- 常用操作：
-  - 初次拉取：
-```bash
-git submodule update --init --recursive
-```
-  - 获取上游最新代码：
-```bash
-git submodule update --remote --merge aggregator
-```
-  - 提交注意：submodule 记录的是指向上游的提交指针，更新后需在主仓库提交该指针变更。
+- 默认监听：127.0.0.1:10710（SOCKS5）
 
 ## 使用截图
 
