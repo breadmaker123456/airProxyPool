@@ -34,7 +34,7 @@ def kill_glider(process):
 def run_collector():
     """运行收集器脚本"""
     try:
-        subprocess.run(["python3", "run_collector.py"], check=True)
+        subprocess.run(["python", "run_collector.py"], check=True)
         return True
     except subprocess.CalledProcessError as e:
         print(f"Error running collector: {e}")
@@ -43,7 +43,7 @@ def run_collector():
 def main():
     # 获取当前脚本所在目录
     current_dir = Path(__file__).parent.absolute()
-    glider_path = current_dir / "glider" / "glider"  # glider可执行文件路径
+    glider_path = current_dir / "glider" / "glider.exe"  # glider可执行文件路径
     config_path = current_dir / "glider" / "glider.conf"  # 配置文件路径
 
     # 检查必要文件是否存在
@@ -82,9 +82,9 @@ def main():
             # 等待30分钟
             print(f"[{datetime.now()}] Waiting 30 minutes until next update...")
             time.sleep(1800)  # 30分钟 = 1800秒
-            
+
             print(f"\n[{datetime.now()}] Starting update cycle...")
-            
+
             # 运行收集器
             if run_collector():
                 # 如果glider正在运行，先终止它
