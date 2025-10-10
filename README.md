@@ -1,7 +1,8 @@
 # airProxyPool 代理池
+![proxy_config](docs/images/use.png)
+
 
 用于“代理池”场景：把不同来源、不同格式的节点统一成一个稳定的 SOCKS5 出口。适合爬虫、批量注册（注册机）、自动化任务等需要大量/稳定出站代理的场景。
-![proxy_config](docs/images/use.png)
 
 1) 通过 aggregator 自动扫描与聚合可用节点
 2) 使用 glider 将节点统一转换为 SOCKS5 代理供外部访问
@@ -121,4 +122,4 @@ python subscription_scheduler.py
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=langchou/airProxyPool&type=Date)](https://star-history.com/#dreammis/airProxyPool&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=dreammis/airProxyPool&type=Date)](https://star-history.com/#dreammis/airProxyPool&Date)
