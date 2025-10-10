@@ -41,27 +41,27 @@ pip install -r requirements.txt
     - Windows: glider/glider.exe（示例下载链接：v0.16.4 32-bit）
       https://github.com/nadoo/glider/releases/download/v0.16.4/glider_0.16.4_windows_386.zip
       解压后重命名为 glider.exe 放到 glider/ 目录
-      验证：
-```bash
-./glider/glider.exe -h
-```
+      验证： `./glider/glider.exe -h`
+
     - macOS（示例，版本号以官方为准）
-```bash
-# 示例：下载压缩包
-wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_macos_amd64.tar.gz
-# 解压（文件名以实际下载为准）
-tar -zxf glider_0.16.3_darwin_amd64.tar.gz
-# 移动到项目目录的 glider/
-mv glider_0.16.3_darwin_amd64 glider
-chmod +x glider/glider
-```
+      ```bash
+      # 示例：下载压缩包
+      wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_macos_amd64.tar.gz
+      # 解压（文件名以实际下载为准）
+      tar -zxf glider_0.16.3_darwin_amd64.tar.gz
+      # 移动到项目目录的 glider/
+      mv glider_0.16.3_darwin_amd64 glider
+      chmod +x glider/glider
+      ```
+
     - Linux（示例，版本号以官方为准）
-```bash
-wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_linux_amd64.tar.gz
-tar -zxf glider_0.16.3_linux_amd64.tar.gz
-mv glider_0.16.3_linux_amd64 glider
-chmod +x glider/glider
-```
+
+      ```bash
+      wget https://github.com/nadoo/glider/releases/download/v0.16.3/glider_0.16.3_linux_amd64.tar.gz
+      tar -zxf glider_0.16.3_linux_amd64.tar.gz
+      mv glider_0.16.3_linux_amd64 glider
+      chmod +x glider/glider
+      ```
 - glider 基础配置（glider/glider.conf）（此为示例，脚本会自行创建）
 ```conf
 # Verbose mode, print logs
