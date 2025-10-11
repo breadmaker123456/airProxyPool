@@ -27,7 +27,7 @@ except ImportError:
 SUBSCRIPTIONS_FILE = 'subscriptions.txt'  # path to txt file listing subscription URLs
 CONFIG_OUTPUT = str(Path('glider') / 'glider.subscription.conf')  # output glider config path
 LISTEN = ':10710'  # listen address for glider (e.g., ':10707' or '127.0.0.1:10809')
-INTERVAL_SECONDS = 1800  # refresh interval seconds
+INTERVAL_SECONDS = 6000  # refresh interval seconds
 GLIDER_BINARY = str(Path('glider') / ('glider.exe' if os.name == 'nt' else 'glider'))  # path to glider binary
 RUN_ONCE = False  # set True to run once and exit
 DRY_RUN = False   # set True to fetch/parse only (no write/start)
@@ -39,7 +39,7 @@ TEST_EXPECT_STATUSES = (204, 200)  # acceptable HTTP statuses
 TEST_TIMEOUT = 8  # seconds
 TEST_LISTEN_HOST = '127.0.0.1'
 TEST_START_PORT = 18081  # starting port for temporary glider listeners during tests
-TEST_MAX_WORKERS = 100  # number of threads to test forwarders concurrently
+TEST_MAX_WORKERS = 20  # number of threads to test forwarders concurrently
 
 # Health check URL used inside generated glider config
 HEALTHCHECK_URL = 'http://www.msftconnecttest.com/connecttest.txt#expect=200'
@@ -183,13 +183,13 @@ def parse_yaml_content(text: str) -> Tuple[str, int]:
 
 def detect_format_from_response(resp_text: str, resp_ct: str) -> str:
     ct = (resp_ct or '').lower()
+    head = next((ln.strip() for ln in resp_text.splitlines() if ln.strip()), '')
+    if head.startswith('proxies:'):
+        return 'yaml'
     if 'yaml' in ct or 'yml' in ct:
         return 'yaml'
     if 'text/plain' in ct:
         return 'txt'
-    head = next((ln.strip() for ln in resp_text.splitlines() if ln.strip()), '')
-    if head.startswith('proxies:'):
-        return 'yaml'
     return 'txt'
 
 
@@ -253,7 +253,7 @@ strategy=rr
 check={HEALTHCHECK_URL}
 
 # check interval(seconds)
-checkinterval=120
+checkinterval=300
 
 """
 
