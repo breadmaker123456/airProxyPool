@@ -54,9 +54,14 @@ class ProxyEndpoint:
     updated_at: datetime = field(default_factory=utcnow)
     last_checked: Optional[datetime] = None
 
-    def public_endpoint(self) -> str:
+    def public_endpoint(self, host_override: str | None = None) -> str:
         scheme = self.protocol.lower()
-        return f"{scheme}://{self.public_host}:{self.port}"
+        host = host_override or self.public_host
+        if ":" in host and not host.startswith("["):
+            formatted_host = f"[{host}]"
+        else:
+            formatted_host = host
+        return f"{scheme}://{formatted_host}:{self.port}"
 
     def to_dict(self) -> dict:
         data = asdict(self)
