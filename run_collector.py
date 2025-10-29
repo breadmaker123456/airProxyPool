@@ -31,7 +31,7 @@ def update_glider_conf(forward_content):
 verbose=true
 
 # 监听地址
-listen=:10707
+listen=mixed://:10707
 
 # Round Robin mode: rr
 # High Availability mode: ha

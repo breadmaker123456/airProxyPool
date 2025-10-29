@@ -165,3 +165,4 @@ cython_debug/
 # Runtime data and generated artifacts
 /data/
 /tmp/
+test_glider_config.py
