@@ -10,6 +10,7 @@ import yaml
 
 from .config import Settings
 from .models import ProxyNode
+from .subscriptions import fetch_and_parse, read_subscriptions_file
 from .utils import derive_country
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,13 @@ def load_nodes(settings: Settings) -> List[ProxyNode]:
             )
             return nodes
 
-    logger.warning("No proxy nodes found; please run collector or provide subscription config")
+    subscription_nodes = _load_from_subscriptions(settings)
+    if subscription_nodes:
+        return subscription_nodes
+
+    logger.warning(
+        "No proxy nodes found; please run collector or ensure subscriptions are configured"
+    )
     return []
 
 
@@ -125,36 +132,95 @@ def _build_backend_uri_from_clash(proxy: dict) -> str | None:
     return None
 
 
-def _load_from_forward_config(path: Path) -> Iterable[ProxyNode]:
+def _nodes_from_forward_lines(lines: Iterable[str], source: str) -> List[ProxyNode]:
     nodes: Dict[str, ProxyNode] = {}
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or not line.startswith("forward="):
+            continue
+        uri = line[len("forward=") :]
+        parsed = urlsplit(uri)
+        schema = (parsed.scheme or "").lower()
+        if schema not in SUPPORTED_SCHEMAS:
+            continue
+        server = parsed.hostname or ""
+        port = parsed.port or 0
+        if not server or port <= 0:
+            continue
+        name = unquote(parsed.fragment) if parsed.fragment else None
+        country_name, country_code = derive_country(name)
+        uid = hashlib.sha1(uri.encode("utf-8")).hexdigest()
+        if uid in nodes:
+            continue
+        nodes[uid] = ProxyNode(
+            uid=uid,
+            backend_uri=uri,
+            schema=schema,
+            server=server,
+            port=port,
+            country=country_name,
+            country_code=country_code,
+            name=name,
+            source=source,
+            raw={"uri": uri, "source": source},
+        )
+    return list(nodes.values())
+
+
+def _load_from_forward_config(path: Path) -> Iterable[ProxyNode]:
     with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line or not line.startswith("forward="):
-                continue
-            uri = line[len("forward=") :]
-            parsed = urlsplit(uri)
-            schema = parsed.scheme
-            if schema not in SUPPORTED_SCHEMAS:
-                continue
-            server = parsed.hostname or ""
-            port = parsed.port or 0
-            name = unquote(parsed.fragment) if parsed.fragment else None
-            country_name, country_code = derive_country(name)
-            uid = hashlib.sha1(uri.encode("utf-8")).hexdigest()
-            if uid in nodes:
-                continue
-            node = ProxyNode(
-                uid=uid,
-                backend_uri=uri,
-                schema=schema,
-                server=server,
-                port=port,
-                country=country_name,
-                country_code=country_code,
-                name=name,
-                source="forward_config",
-                raw={"uri": uri},
-            )
-            nodes[uid] = node
-    return nodes.values()
+        return _nodes_from_forward_lines(handle, source="forward_config")
+
+
+def _load_from_subscriptions(settings: Settings) -> List[ProxyNode]:
+    urls = read_subscriptions_file(settings.subscriptions_file)
+    if not urls:
+        logger.debug("No subscription URLs found in %s", settings.subscriptions_file)
+        return []
+
+    try:
+        content, stats = fetch_and_parse(urls)
+    except Exception as exc:  # pragma: no cover - network heavy
+        logger.error(
+            "Failed to load subscriptions from %s: %s",
+            settings.subscriptions_file,
+            exc,
+        )
+        return []
+
+    if not isinstance(stats, dict):
+        stats = {}
+
+    entries = int(stats.get("entries", 0) or 0)
+    if entries <= 0:
+        logger.warning(
+            "No usable subscription entries found (ok=%s, failed=%s)",
+            stats.get("ok_urls", 0),
+            stats.get("failed_urls", 0),
+        )
+        return []
+
+    nodes = _nodes_from_forward_lines(content.splitlines(), source="subscription")
+    if not nodes:
+        logger.warning(
+            "Subscription fetch reported %s entries but none could be parsed", entries
+        )
+        return []
+
+    failed_urls = []
+    by_url = stats.get("by_url", {})
+    if isinstance(by_url, dict):
+        for url, info in by_url.items():
+            if isinstance(info, dict) and info.get("error"):
+                failed_urls.append(f"{url}: {info.get('error')}")
+
+    if failed_urls:
+        logger.warning("Some subscription URLs failed: %s", "; ".join(failed_urls))
+
+    logger.info(
+        "Loaded %s nodes from subscriptions (ok=%s, failed=%s)",
+        len(nodes),
+        stats.get("ok_urls", 0),
+        stats.get("failed_urls", 0),
+    )
+    return nodes
