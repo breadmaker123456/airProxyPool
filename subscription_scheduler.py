@@ -24,7 +24,7 @@ except ImportError:
 # ==========================
 SUBSCRIPTIONS_FILE = 'subscriptions.txt'  # path to txt file listing subscription URLs
 CONFIG_OUTPUT = str(Path('glider') / 'glider.subscription.conf')  # output glider config path
-LISTEN = ':10710'  # listen address for glider (e.g., ':10707' or '127.0.0.1:10809')
+LISTEN = 'mixed://:10710'  # listen address for glider (e.g., 'mixed://:10707' or 'socks5://127.0.0.1:10809')
 INTERVAL_SECONDS = 6000  # refresh interval seconds
 GLIDER_BINARY = str(Path('glider') / ('glider.exe' if os.name == 'nt' else 'glider'))  # path to glider binary
 RUN_ONCE = False  # set True to run once and exit
@@ -115,7 +115,7 @@ def _choose_test_port(idx: int) -> int:
 
 def _write_temp_test_config(base_dir: Path, port: int, forward_line: str) -> Path:
     cfg_path = base_dir / f'glider.test.{port}.conf'
-    content = build_base_config(f'{TEST_LISTEN_HOST}:{port}') + (forward_line if forward_line.endswith('\n') else forward_line + '\n')
+    content = build_base_config(f'http://{TEST_LISTEN_HOST}:{port}') + (forward_line if forward_line.endswith('\n') else forward_line + '\n')
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     with open(cfg_path, 'w', encoding='utf-8') as f:
         f.write(content)

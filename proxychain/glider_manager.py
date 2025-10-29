@@ -76,7 +76,7 @@ class GliderManager:
             formatted_host = listen_host
 
         if protocol == "socks5":
-            listen = f"{formatted_host}:{endpoint.port}"
+            listen = f"socks5://{formatted_host}:{endpoint.port}"
         else:
             scheme = "http"
             listen = f"{scheme}://{formatted_host}:{endpoint.port}"
