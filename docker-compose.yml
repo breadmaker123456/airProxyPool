@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  proxychain:
+    build: .
+    image: proxychain:latest
+    restart: unless-stopped
+    environment:
+      - PUBLIC_HOST=${PUBLIC_HOST:-127.0.0.1}
+      - ENABLE_GLIDER=${ENABLE_GLIDER:-true}
+      - BASE_SOCKS_PORT=${BASE_SOCKS_PORT:-25000}
+      - BASE_HTTP_PORT=${BASE_HTTP_PORT:-26000}
+      - PROXY_LISTEN_HOST=0.0.0.0
+      - APP_DATA_DIR=/data
+    ports:
+      - "8000:8000"
+      - "25000-25100:25000-25100"
+      - "26000-26100:26000-26100"
+    volumes:
+      - ./data:/data
+      - ./subscriptions.txt:/app/subscriptions.txt:ro
+      - ./glider:/app/glider
+    command: ["uvicorn", "proxychain.main:app", "--host", "0.0.0.0", "--port", "8000"]

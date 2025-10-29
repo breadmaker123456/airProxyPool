@@ -118,7 +118,75 @@ python subscription_scheduler.py
 - 行为：定时拉取 → 解析为 forward= → 写入 glider/glider.subscription.conf → 启动/重启 glider 使用该配置
 - 默认 SOCKS5/http：127.0.0.1:10710
 
+## 中转 API 服务
 
+项目新增了一个 `FastAPI` 驱动的中转服务，支持 HTTP/SOCKS5 代理统一出口，并可通过 API 按需返回代理信息。
+
+### 功能摘要
+- 支持协议过滤：`protocols=socks5/http`
+- 支持国家过滤：自动从订阅/节点名称中推断国家信息
+- 支持数量控制：`count` 指定返回的代理数量
+- 支持随机轮换：`random=true` 时每次返回不同端口；默认 5 分钟缓存相同请求
+- 提供健康检查与手动刷新接口
+
+### 启动（本地）
+```bash
+pip install -r requirements.txt
+uvicorn proxychain.main:app --host 0.0.0.0 --port 8000
+```
+
+服务启动后可访问：
+- 健康检查：`GET /healthz`
+- 获取代理：`GET /api/v1/proxies?protocols=socks5&country=US&count=3&random=1`
+- 手动刷新：`POST /api/v1/proxies/refresh`
+
+返回示例：
+```json
+{
+  "data": [
+    {
+      "id": "<endpoint-id>",
+      "protocol": "socks5",
+      "endpoint": "socks5://example.com:25001",
+      "country": {"name": "United States", "code": "US"},
+      "available": true
+    }
+  ],
+  "meta": {
+    "requested_count": 3,
+    "returned_count": 3,
+    "cached": false,
+    "random": true
+  }
+}
+```
+
+> **提示**：未开启 `random` 参数时，服务会对相同的查询结果做 5 分钟缓存。
+
+### Docker Compose 部署
+
+项目根目录提供 `docker-compose.yml`，单容器即可完成部署并持久化数据。
+
+```bash
+# 构建并启动
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+```
+
+默认映射：
+- API：`8000` (宿主) → `8000` (容器)
+- SOCKS5 端口池：`25000-25100`
+- HTTP 端口池：`26000-26100`
+- 数据目录：`./data`
+
+确保 `glider` 可执行文件位于宿主机 `./glider`（或通过 `GLIDER_BINARY` 指定路径），并在 `subscriptions.txt` 中配置订阅地址。
+
+常用环境变量：
+- `PUBLIC_HOST`：对外暴露的域名/IP，默认 `127.0.0.1`
+- `BASE_SOCKS_PORT`、`BASE_HTTP_PORT`：本地端口起始值
+- `ENABLE_GLIDER`：是否自动拉起 glider 进程（默认开启）
 
 ## Star History
 
