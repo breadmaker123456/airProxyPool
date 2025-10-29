@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # argparse removed — using top-of-file variables for configuration
-import base64
 import os
-import re
 import signal
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
+from concurrent.futures import ThreadPoolExecutor
 
-import yaml
+from proxychain.subscriptions import fetch_and_parse, read_subscriptions_file
 
 try:
     import requests
@@ -49,194 +47,6 @@ def _ensure_requests():
     if requests is None:
         print("Error: requests is required. Please 'pip install -r requirements.txt'", file=sys.stderr)
         sys.exit(1)
-
-
-def _b64_decode(s: str) -> bytes:
-    s = s.strip().replace('-', '+').replace('_', '/')
-    padding = (-len(s)) % 4
-    return base64.b64decode(s + ('=' * padding))
-
-
-def _vmess_from_base64(uri: str) -> str:
-    payload = uri[len('vmess://'):]  # strip scheme
-    try:
-        raw = _b64_decode(payload).decode('utf-8', errors='ignore')
-        data = yaml.safe_load(raw)
-        if not isinstance(data, dict):
-            raise ValueError('Invalid vmess JSON payload')
-        server = str(data.get('add', '')).strip()
-        port = str(data.get('port', '')).strip()
-        uuid = str(data.get('id', '')).strip()
-        alter_id = str(data.get('aid', '0')).strip() or '0'
-        if not (server and port and uuid):
-            raise ValueError('Missing required vmess fields (add/port/id)')
-        return f"vmess://none:{uuid}@{server}:{port}?alterID={alter_id}"
-    except Exception:
-        return uri
-
-
-def parse_txt_content(text: str) -> Tuple[str, int]:
-    """Parse plain text subscription content into glider forward lines.
-    - Accept ss:// and vmess:// lines
-    - Detect and decode base64-encoded blob first (some providers base64-wrap the whole list)
-    - Normalize ss:// variants: decode base64 userinfo before '@', and decode fully base64 ss URIs
-    """
-    def _maybe_decode_base64_blob(s: str) -> str:
-        compact = ''.join(s.split())
-        if not compact:
-            return s
-        # Heuristic: must be base64 alphabet
-        if not re.fullmatch(r'[A-Za-z0-9+/=_-]+', compact):
-            return s
-        try:
-            decoded = _b64_decode(compact).decode('utf-8', errors='ignore')
-            # Only treat as valid if it yields recognizable URIs
-            if 'ss://' in decoded or 'vmess://' in decoded:
-                return decoded
-        except Exception:
-            pass
-        return s
-
-    def _normalize_ss_uri(uri: str) -> str:
-        # Expect uri starts with ss://
-        try:
-            rest = uri[len('ss://'):]
-            # Case A: base64 userinfo before '@' (e.g., ss://BASE64@host:port#tag)
-            if '@' in rest:
-                userinfo, tail = rest.split('@', 1)
-                # If userinfo looks like base64 and does not already contain ':' (common hint)
-                if re.fullmatch(r'[A-Za-z0-9+/=_-]+', userinfo) and ':' not in userinfo:
-                    try:
-                        dec = _b64_decode(userinfo).decode('utf-8', errors='ignore')
-                        # Must be method:password
-                        if ':' in dec and '@' not in dec:
-                            return f"ss://{dec}@{tail}"
-                    except Exception:
-                        pass
-                return uri
-            # Case B: fully base64 after scheme (e.g., ss://BASE64#tag)
-            base_part = rest.split('#', 1)[0]
-            suffix = rest[len(base_part):]  # includes '#' and tag if any
-            if re.fullmatch(r'[A-Za-z0-9+/=_-]+', base_part):
-                try:
-                    dec_full = _b64_decode(base_part).decode('utf-8', errors='ignore')
-                    # Expected method:password@host:port[?plugin=...]
-                    if ':' in dec_full and '@' in dec_full:
-                        return f"ss://{dec_full}{suffix}"
-                except Exception:
-                    pass
-            return uri
-        except Exception:
-            return uri
-
-    def _parse_lines(s: str) -> List[str]:
-        forwards: List[str] = []
-        for raw in s.splitlines():
-            line = raw.strip()
-            if not line or line.startswith('#'):
-                continue
-            if line.startswith('ss://'):
-                normalized = _normalize_ss_uri(line)
-                forwards.append(f"forward={normalized}")
-            elif line.startswith('vmess://'):
-                candidate = line if '@' in line else _vmess_from_base64(line)
-                forwards.append(f"forward={candidate}")
-        return forwards
-
-    # 1) If the whole content is a base64 blob, decode it first
-    text_to_parse = _maybe_decode_base64_blob(text)
-
-    # 2) Parse lines
-    forwards = _parse_lines(text_to_parse)
-
-    # 3) Fallback: if nothing parsed, try base64-decoding anyway (handles edge cases)
-    if not forwards:
-        compact = ''.join(text.split())
-        try:
-            decoded = _b64_decode(compact).decode('utf-8', errors='ignore')
-            forwards = _parse_lines(decoded)
-        except Exception:
-            forwards = []
-
-    out = "\n".join(forwards)
-    if out and not out.endswith('\n'):
-        out += '\n'
-    return out, len(forwards)
-
-
-def parse_yaml_content(text: str) -> Tuple[str, int]:
-    """Use parse.py:parse_config to convert Clash YAML proxies to forward lines."""
-    import importlib.util
-    current_dir = Path(__file__).parent.absolute()
-    parse_path = current_dir / 'parse.py'
-    if not parse_path.exists():
-        raise FileNotFoundError(f'Parser script not found at {parse_path}')
-    data = yaml.safe_load(text) or {}
-    proxies = data.get('proxies', [])
-    spec = importlib.util.spec_from_file_location('parse_module', str(parse_path))
-    mod = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
-    spec.loader.exec_module(mod)
-    forward_content = mod.parse_config(proxies)
-    return forward_content, len(proxies)
-
-
-def detect_format_from_response(resp_text: str, resp_ct: str) -> str:
-    ct = (resp_ct or '').lower()
-    head = next((ln.strip() for ln in resp_text.splitlines() if ln.strip()), '')
-    if head.startswith('proxies:'):
-        return 'yaml'
-    if 'yaml' in ct or 'yml' in ct:
-        return 'yaml'
-    if 'text/plain' in ct:
-        return 'txt'
-    return 'txt'
-
-
-def fetch_and_parse(urls: List[str]) -> Tuple[str, dict]:
-    """Fetch all URLs, parse into forward lines, deduplicate, and return combined content and stats."""
-    _ensure_requests()
-    forwards: List[str] = []
-    stats = { 'total_urls': len(urls), 'ok_urls': 0, 'failed_urls': 0, 'entries': 0, 'by_url': {} }
-
-    for url in urls:
-        url_stats = { 'count': 0, 'error': None, 'format': None }
-        try:
-            resp = requests.get(url, timeout=30, verify=False)
-            resp.raise_for_status()
-            fmt = detect_format_from_response(resp.text, resp.headers.get('Content-Type', ''))
-            url_stats['format'] = fmt
-            if fmt == 'yaml':
-                content, count = parse_yaml_content(resp.text)
-            else:
-                content, count = parse_txt_content(resp.text)
-            if count > 0:
-                forwards.extend([ln.strip() for ln in content.splitlines() if ln.strip()])
-                url_stats['count'] = count
-                stats['ok_urls'] += 1
-            else:
-                url_stats['error'] = 'No usable entries'
-                stats['failed_urls'] += 1
-        except Exception as e:
-            url_stats['error'] = str(e)
-            stats['failed_urls'] += 1
-        stats['by_url'][url] = url_stats
-
-    # Deduplicate and normalize
-    dedup = []
-    seen = set()
-    for ln in forwards:
-        if not ln.startswith('forward='):
-            continue
-        if ln not in seen:
-            dedup.append(ln)
-            seen.add(ln)
-
-    combined = "\n".join(dedup)
-    if combined:
-        combined += "\n"
-    stats['entries'] = len(dedup)
-    return combined, stats
 
 
 def build_base_config(listen: str) -> str:
@@ -389,6 +199,8 @@ def main():
         print(f"No subscriptions found in {subs_path}. Add URLs (one per line).")
         sys.exit(1)
 
+    _ensure_requests()
+
     # Initial fetch and write config
     forwards, stats = fetch_and_parse(urls)
 
@@ -441,6 +253,7 @@ def main():
         if not urls:
             print(f"[{datetime.now()}] No subscriptions found; skipping update.")
             continue
+        _ensure_requests()
         forwards, stats = fetch_and_parse(urls)
         print(f"[{datetime.now()}] Update: ok={stats['ok_urls']}, failed={stats['failed_urls']}, entries={stats['entries']}")
         if stats['entries'] <= 0:
