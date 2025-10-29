@@ -66,6 +66,10 @@ class Settings:
             "http://www.msftconnecttest.com/connecttest.txt#expect=200",
         )
     )
+    glider_strategy: str = field(default_factory=lambda: os.getenv("GLIDER_STRATEGY", "rr"))
+    glider_check_interval: int = field(
+        default_factory=lambda: _int_env("GLIDER_CHECK_INTERVAL", 60)
+    )
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
     glider_config_dir: Path = field(init=False)
@@ -81,6 +85,13 @@ class Settings:
             self.enabled_protocols = parsed or ["socks5", "http"]
         else:
             self.enabled_protocols = ["socks5", "http"]
+
+        strategy = (self.glider_strategy or "").strip().lower()
+        self.glider_strategy = strategy or "rr"
+
+        self.health_check_url = self.health_check_url.strip() if self.health_check_url else ""
+        if self.glider_check_interval <= 0:
+            self.glider_check_interval = 60
 
         self.data_dir = self.data_dir.expanduser().resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)
