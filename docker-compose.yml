@@ -2,7 +2,11 @@ version: "3.9"
 
 services:
   proxychain:
-    build: .
+    build:
+      context: .
+      args:
+        GLIDER_VERSION: ${GLIDER_VERSION:-0.16.4}
+        GLIDER_ARCH: ${GLIDER_ARCH:-linux_amd64}
     image: proxychain:latest
     restart: unless-stopped
     environment:
@@ -19,5 +23,4 @@ services:
     volumes:
       - ./data:/data
       - ./subscriptions.txt:/app/subscriptions.txt:ro
-      - ./glider:/app/glider
     command: ["uvicorn", "proxychain.main:app", "--host", "0.0.0.0", "--port", "8000"]

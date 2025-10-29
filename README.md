@@ -37,6 +37,9 @@ pip install -r requirements.txt
 ```
 
 - 安装 glider（下载与放置）
+
+  > 使用 Docker 部署时镜像会自动下载 glider，可跳过此步骤。
+
   - 将可执行文件放到项目 glider/ 目录：
     - Windows: glider/glider.exe（示例下载链接：v0.16.4 32-bit）
       https://github.com/nadoo/glider/releases/download/v0.16.4/glider_0.16.4_windows_386.zip
@@ -181,7 +184,7 @@ docker compose logs -f
 - HTTP 端口池：`26000-26100`
 - 数据目录：`./data`
 
-确保 `glider` 可执行文件位于宿主机 `./glider`（或通过 `GLIDER_BINARY` 指定路径），并在 `subscriptions.txt` 中配置订阅地址。
+镜像会在构建时自动下载 Linux 版 glider 并放置到 `/app/glider/glider`，无需额外准备二进制。若需指定自定义版本，可在构建时通过 `--build-arg GLIDER_VERSION=...`（以及 `GLIDER_ARCH`）覆盖，或直接在运行 `docker compose build` 前设置同名环境变量（`docker-compose.yml` 已预置 build args）。也可在运行时挂载自定义可执行文件并设置 `GLIDER_BINARY` 环境变量指向其路径。部署前请在宿主机的 `subscriptions.txt` 中填入订阅地址（容器内以只读方式挂载）。
 
 常用环境变量：
 - `PUBLIC_HOST`：对外暴露的域名/IP，默认 `127.0.0.1`
