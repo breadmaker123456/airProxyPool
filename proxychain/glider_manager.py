@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -12,6 +13,9 @@ from .config import Settings
 from .models import ProxyEndpoint
 
 logger = logging.getLogger(__name__)
+
+
+_FILENAME_SANITIZE_PATTERN = re.compile(r"[^A-Za-z0-9._-]")
 
 
 @dataclass
@@ -45,6 +49,15 @@ class GliderManager:
         self.settings = settings
         self._handles: Dict[str, GliderHandle] = {}
         self._lock = threading.RLock()
+
+    def _config_filename(self, endpoint_id: str) -> str:
+        digest = hashlib.sha1(endpoint_id.encode("utf-8")).hexdigest()[:8]
+        safe = _FILENAME_SANITIZE_PATTERN.sub("_", endpoint_id).strip("._-")
+        if len(safe) > 48:
+            safe = safe[:48]
+        if not safe:
+            safe = digest
+        return f"{safe}-{digest}.conf"
 
     def _build_config(self, endpoint: ProxyEndpoint, backend_uri: str) -> str:
         protocol = endpoint.protocol.lower()
@@ -91,26 +104,39 @@ class GliderManager:
 
         config_content = self._build_config(endpoint, backend_uri)
         config_hash = hashlib.sha256(config_content.encode("utf-8")).hexdigest()
-        config_path = self.settings.glider_config_dir / f"{endpoint.id}.conf"
+        config_filename = self._config_filename(endpoint.id)
+        config_path = self.settings.glider_config_dir / config_filename
+
+        previous_config_path: Path | None = None
+        started = False
 
         with self._lock:
             handle = self._handles.get(endpoint.id)
-            if handle and not handle.is_alive():
-                logger.info("Glider endpoint %s is not running; removing stale handle", endpoint.id)
-                self._handles.pop(endpoint.id, None)
-                handle = None
-            if handle and handle.config_hash != config_hash:
-                logger.info("Config changed for endpoint %s; restarting glider", endpoint.id)
-                if handle.is_alive():
-                    handle.stop()
-                self._handles.pop(endpoint.id, None)
-                handle = None
-            if handle and handle.is_alive():
-                # Config unchanged and process alive
-                return True
+            if handle:
+                if not handle.is_alive():
+                    logger.info("Glider endpoint %s is not running; removing stale handle", endpoint.id)
+                    previous_config_path = handle.config_path
+                    self._handles.pop(endpoint.id, None)
+                    handle = None
+                elif handle.config_path != config_path or handle.config_hash != config_hash:
+                    reason = "configuration"
+                    if handle.config_path != config_path and handle.config_hash == config_hash:
+                        reason = "configuration path"
+                    logger.info("Config changed for endpoint %s (%s); restarting glider", endpoint.id, reason)
+                    previous_config_path = handle.config_path
+                    if handle.is_alive():
+                        handle.stop()
+                    self._handles.pop(endpoint.id, None)
+                    handle = None
+                else:
+                    return True
 
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(config_content, encoding="utf-8")
+            try:
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                config_path.write_text(config_content, encoding="utf-8")
+            except OSError as exc:
+                logger.error("Failed to write glider config for %s: %s", endpoint.id, exc)
+                return False
 
             try:
                 process = subprocess.Popen(
@@ -120,9 +146,17 @@ class GliderManager:
                 )
             except FileNotFoundError:
                 logger.warning("Glider binary %s not executable; endpoint %s disabled", binary, endpoint.id)
+                try:
+                    config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
                 return False
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error("Failed to start glider for %s: %s", endpoint.id, exc)
+                try:
+                    config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
                 return False
 
             try:
@@ -135,6 +169,10 @@ class GliderManager:
                     endpoint.id,
                     process.returncode,
                 )
+                try:
+                    config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
                 return False
 
             handle = GliderHandle(
@@ -150,7 +188,25 @@ class GliderManager:
                 endpoint.protocol,
                 endpoint.port,
             )
-            return True
+            started = True
+
+        if previous_config_path and previous_config_path != config_path:
+            try:
+                previous_config_path.unlink(missing_ok=True)
+            except AttributeError:
+                if previous_config_path.exists():  # pragma: no cover
+                    previous_config_path.unlink()
+            except OSError:  # pragma: no cover - best effort cleanup
+                logger.debug("Unable to remove stale glider config %s", previous_config_path)
+
+        legacy_path = self.settings.glider_config_dir / f"{endpoint.id}.conf"
+        if legacy_path != config_path:
+            try:
+                legacy_path.unlink(missing_ok=True)
+            except (AttributeError, OSError):  # pragma: no cover - best effort cleanup
+                pass
+
+        return started
 
     def cleanup(self, active_endpoint_ids: set[str]) -> None:
         with self._lock:
