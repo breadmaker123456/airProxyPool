@@ -95,11 +95,17 @@ class GliderManager:
 
         with self._lock:
             handle = self._handles.get(endpoint.id)
+            if handle and not handle.is_alive():
+                logger.info("Glider endpoint %s is not running; removing stale handle", endpoint.id)
+                self._handles.pop(endpoint.id, None)
+                handle = None
             if handle and handle.config_hash != config_hash:
                 logger.info("Config changed for endpoint %s; restarting glider", endpoint.id)
-                handle.stop()
+                if handle.is_alive():
+                    handle.stop()
                 self._handles.pop(endpoint.id, None)
-            elif handle and handle.is_alive():
+                handle = None
+            if handle and handle.is_alive():
                 # Config unchanged and process alive
                 return True
 
@@ -117,6 +123,18 @@ class GliderManager:
                 return False
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error("Failed to start glider for %s: %s", endpoint.id, exc)
+                return False
+
+            try:
+                process.wait(timeout=0.01)
+            except subprocess.TimeoutExpired:
+                pass
+            else:
+                logger.error(
+                    "Glider exited immediately for endpoint %s with return code %s",
+                    endpoint.id,
+                    process.returncode,
+                )
                 return False
 
             handle = GliderHandle(

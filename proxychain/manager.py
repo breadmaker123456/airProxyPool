@@ -152,12 +152,20 @@ class ProxyManager:
                     node = new_nodes.get(endpoint.node_uid)
                     if not node:
                         continue
+                    previous = self._endpoints.get(endpoint.id)
                     alive = self._glider.ensure(endpoint, node.backend_uri)
                     endpoint.available = alive
                     endpoint.updated_at = now
                     if alive:
                         endpoint.last_checked = now
-                    active_ids.add(endpoint.id)
+                        active_ids.add(endpoint.id)
+                    else:
+                        if not previous or previous.available:
+                            logger.warning(
+                                "Glider process unavailable for endpoint %s (node %s)",
+                                endpoint.id,
+                                endpoint.node_uid,
+                            )
                 self._glider.cleanup(active_ids)
             else:
                 self._glider.stop_all()
@@ -203,12 +211,21 @@ class ProxyManager:
         if not randomize:
             cached = self._cache.get(key)
             if cached:
-                endpoints = [self._endpoints[endpoint_id] for endpoint_id in cached.endpoint_ids if endpoint_id in self._endpoints]
+                endpoints: List[ProxyEndpoint] = []
+                for endpoint_id in cached.endpoint_ids:
+                    endpoint = self._endpoints.get(endpoint_id)
+                    if endpoint and endpoint.available:
+                        endpoints.append(endpoint)
                 if endpoints:
                     return SelectionResult(endpoints=endpoints, cached=True, cache_expires_at=cached.expires_at)
+                self._cache.invalidate(key)
 
         with self._lock:
-            available = [endpoint for endpoint in self._endpoints.values() if endpoint.protocol in protocols]
+            available = [
+                endpoint
+                for endpoint in self._endpoints.values()
+                if endpoint.protocol in protocols and endpoint.available
+            ]
             if country:
                 available = [endpoint for endpoint in available if matches_country(country, endpoint.country, endpoint.country_code)]
 
