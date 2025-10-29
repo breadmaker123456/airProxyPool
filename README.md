@@ -190,6 +190,9 @@ docker compose logs -f
 - `PUBLIC_HOST`：对外暴露的域名/IP，默认 `127.0.0.1`
 - `BASE_SOCKS_PORT`、`BASE_HTTP_PORT`：本地端口起始值
 - `ENABLE_GLIDER`：是否自动拉起 glider 进程（默认开启）
+- `GLIDER_STRATEGY`：glider 端的调度策略，默认 `rr`，可设为 `ha` 等 glider 支持的模式
+- `GLIDER_CHECK_INTERVAL`：健康检查间隔（秒），默认 `60`
+- `PROXY_HEALTH_CHECK`：健康检查 URL，留空可禁用 glider 内置检查
 
 ## Star History
 
