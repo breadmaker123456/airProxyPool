@@ -70,6 +70,18 @@ class Settings:
     glider_check_interval: int = field(
         default_factory=lambda: _int_env("GLIDER_CHECK_INTERVAL", 60)
     )
+    glider_dial_timeout: int = field(
+        default_factory=lambda: _int_env("GLIDER_DIAL_TIMEOUT", 10)
+    )
+    glider_relay_timeout: int = field(
+        default_factory=lambda: _int_env("GLIDER_RELAY_TIMEOUT", 30)
+    )
+    glider_check_timeout: int = field(
+        default_factory=lambda: _int_env("GLIDER_CHECK_TIMEOUT", 8)
+    )
+    glider_max_failures: int = field(
+        default_factory=lambda: _int_env("GLIDER_MAX_FAILURES", 2)
+    )
     log_level: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
     glider_config_dir: Path = field(init=False)
@@ -92,6 +104,12 @@ class Settings:
         self.health_check_url = self.health_check_url.strip() if self.health_check_url else ""
         if self.glider_check_interval <= 0:
             self.glider_check_interval = 60
+        if self.glider_dial_timeout <= 0:
+            self.glider_dial_timeout = 10
+        if self.glider_check_timeout <= 0:
+            self.glider_check_timeout = 8
+        if self.glider_max_failures <= 0:
+            self.glider_max_failures = 2
 
         self.data_dir = self.data_dir.expanduser().resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True)

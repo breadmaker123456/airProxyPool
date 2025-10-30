@@ -16,6 +16,11 @@ services:
       - BASE_HTTP_PORT=${BASE_HTTP_PORT:-26000}
       - PROXY_LISTEN_HOST=0.0.0.0
       - APP_DATA_DIR=/data
+      # Glider timeout settings (uncomment and adjust if experiencing connection timeouts)
+      # - GLIDER_DIAL_TIMEOUT=10
+      # - GLIDER_RELAY_TIMEOUT=30
+      # - GLIDER_CHECK_TIMEOUT=8
+      # - GLIDER_MAX_FAILURES=2
     ports:
       - "8000:8000"
       - "25000-25100:25000-25100"
