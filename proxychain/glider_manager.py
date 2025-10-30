@@ -24,6 +24,7 @@ class GliderHandle:
     process: subprocess.Popen | None
     config_path: Path
     config_hash: str
+    log_thread: threading.Thread | None = None
 
     def is_alive(self) -> bool:
         return self.process is not None and self.process.poll() is None
@@ -40,6 +41,8 @@ class GliderHandle:
             logger.warning("Failed to stop glider process %s: %s", self.endpoint_id, exc)
         finally:
             self.process = None
+            if self.log_thread and self.log_thread.is_alive():
+                self.log_thread.join(timeout=1)
 
 
 class GliderManager:
@@ -49,6 +52,18 @@ class GliderManager:
         self.settings = settings
         self._handles: Dict[str, GliderHandle] = {}
         self._lock = threading.RLock()
+
+    def _log_glider_output(self, endpoint_id: str, process: subprocess.Popen) -> None:
+        """Read glider process output and log it."""
+        try:
+            for line in iter(process.stdout.readline, ""):
+                if not line:
+                    break
+                line = line.rstrip()
+                if line:
+                    logger.info("glider[%s]: %s", endpoint_id[:8], line)
+        except Exception as exc:
+            logger.debug("Error reading glider output for %s: %s", endpoint_id, exc)
 
     def _config_filename(self, endpoint_id: str) -> str:
         digest = hashlib.sha1(endpoint_id.encode("utf-8")).hexdigest()[:8]
@@ -134,6 +149,7 @@ class GliderManager:
             try:
                 config_path.parent.mkdir(parents=True, exist_ok=True)
                 config_path.write_text(config_content, encoding="utf-8")
+                logger.debug("Wrote glider config for %s to %s:\n%s", endpoint.id, config_path, config_content)
             except OSError as exc:
                 logger.error("Failed to write glider config for %s: %s", endpoint.id, exc)
                 return False
@@ -141,8 +157,10 @@ class GliderManager:
             try:
                 process = subprocess.Popen(
                     [str(binary), "-config", str(config_path)],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    bufsize=1,
                 )
             except FileNotFoundError:
                 logger.warning("Glider binary %s not executable; endpoint %s disabled", binary, endpoint.id)
@@ -175,11 +193,20 @@ class GliderManager:
                     pass
                 return False
 
+            log_thread = threading.Thread(
+                target=self._log_glider_output,
+                args=(endpoint.id, process),
+                daemon=True,
+                name=f"glider-log-{endpoint.id[:8]}",
+            )
+            log_thread.start()
+
             handle = GliderHandle(
                 endpoint_id=endpoint.id,
                 process=process,
                 config_path=config_path,
                 config_hash=config_hash,
+                log_thread=log_thread,
             )
             self._handles[endpoint.id] = handle
             logger.info(

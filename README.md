@@ -193,6 +193,42 @@ docker compose logs -f
 - `GLIDER_STRATEGY`：glider 端的调度策略，默认 `rr`，可设为 `ha` 等 glider 支持的模式
 - `GLIDER_CHECK_INTERVAL`：健康检查间隔（秒），默认 `60`
 - `PROXY_HEALTH_CHECK`：健康检查 URL，留空可禁用 glider 内置检查
+- `LOG_LEVEL`：日志级别，可设为 `DEBUG` 查看详细的 glider 配置和输出
+
+### 故障排查
+
+如果代理无法连接或返回空响应，请按以下步骤排查：
+
+1. **查看 glider 进程日志**：
+   ```bash
+   # Docker 环境
+   docker compose logs -f
+   
+   # 本地环境，设置日志级别为 DEBUG
+   LOG_LEVEL=DEBUG uvicorn proxychain.main:app --host 0.0.0.0 --port 8000
+   ```
+   
+   日志中会显示：
+   - glider 配置文件内容（DEBUG 级别）
+   - glider 进程的实时输出（INFO 级别，格式：`glider[端点ID前8位]: 消息内容`）
+   - 端点启动/停止状态
+
+2. **检查生成的配置文件**：
+   配置文件位于 `data/glider_configs/` 目录（Docker 中为 `/data/glider_configs/`），可手动查看配置是否正确。
+
+3. **测试单个端点**：
+   ```bash
+   # SOCKS5 代理测试
+   curl -x socks5://127.0.0.1:25000 http://ip.sb
+   
+   # HTTP 代理测试
+   curl -x http://127.0.0.1:26000 http://ip.sb
+   ```
+
+4. **常见问题**：
+   - **空响应**：后端代理节点失效或无法连接，查看 glider 日志确认转发错误
+   - **端口无法访问**：检查防火墙规则和 Docker 端口映射
+   - **订阅解析失败**：确认 `subscriptions.txt` 中的 URL 可访问且格式正确
 
 ## Star History
 
