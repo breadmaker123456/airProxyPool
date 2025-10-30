@@ -192,6 +192,10 @@ docker compose logs -f
 - `ENABLE_GLIDER`：是否自动拉起 glider 进程（默认开启）
 - `GLIDER_STRATEGY`：glider 端的调度策略，默认 `rr`，可设为 `ha` 等 glider 支持的模式
 - `GLIDER_CHECK_INTERVAL`：健康检查间隔（秒），默认 `60`
+- `GLIDER_DIAL_TIMEOUT`：glider 连接后端代理的超时时间（秒），默认 `10`
+- `GLIDER_RELAY_TIMEOUT`：glider 转发超时时间（秒），默认 `30`，设为 `0` 禁用
+- `GLIDER_CHECK_TIMEOUT`：健康检查超时时间（秒），默认 `8`
+- `GLIDER_MAX_FAILURES`：节点失败多少次后标记为不可用，默认 `2`
 - `PROXY_HEALTH_CHECK`：健康检查 URL，留空可禁用 glider 内置检查
 - `LOG_LEVEL`：日志级别，可设为 `DEBUG` 查看详细的 glider 配置和输出
 
@@ -226,7 +230,19 @@ docker compose logs -f
    ```
 
 4. **常见问题**：
-   - **空响应**：后端代理节点失效或无法连接，查看 glider 日志确认转发错误
+   - **空响应或超时**：
+     * 后端代理节点失效或无法连接，查看 glider 日志确认转发错误
+     * 如果日志中出现 `i/o timeout` 或 `dial timeout` 错误，可尝试增加超时时间：
+       ```bash
+       # Docker Compose 环境，在 docker-compose.yml 中添加或修改环境变量
+       environment:
+         - GLIDER_DIAL_TIMEOUT=15  # 增加拨号超时到15秒
+         - GLIDER_RELAY_TIMEOUT=60  # 增加转发超时到60秒
+       
+       # 然后重启服务
+       docker compose down && docker compose up -d
+       ```
+     * 免费节点经常失效，建议使用付费机场或自建节点以获得更稳定的服务
    - **端口无法访问**：检查防火墙规则和 Docker 端口映射
    - **订阅解析失败**：确认 `subscriptions.txt` 中的 URL 可访问且格式正确
 
